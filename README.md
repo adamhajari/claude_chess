@@ -1,10 +1,9 @@
 # Chess Stockfish MCP
 
-An MCP server that gives Claude direct access to Stockfish 18 for chess analysis. Ask Claude to analyze positions, find the best move, or review a full game for blunders and mistakes.
+An MCP server that gives Claude direct access to Stockfish and a Flask web app for chess analysis. Ask Claude to analyze positions, find the best move, or review a full game for blunders and mistakes.
 
 ## Requirements
 
-- [Claude Code](https://claude.ai/claude-code)
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/)
 - Homebrew (Mac)
@@ -27,11 +26,22 @@ git clone <repo-url>
 cd chess
 ```
 
-**4. Restart Claude Code**
+**4. Connect to Claude**
 
-Claude Code will detect `.mcp.json` and load the server automatically when you open this directory. Python dependencies (`chess`, `mcp`) are managed by `uv` and installed automatically on first run.
+**Claude Code** — restart Claude Code and open this directory. It will detect `.mcp.json` and load the server automatically.
+
+**Claude Desktop** — from inside the cloned repo, run:
+```bash
+./claude_desktop_install.sh
+```
+Then restart Claude Desktop. This automatically updates your Claude Desktop config with the correct path.
+
+Python dependencies are managed by `uv` and installed automatically on first run.
 
 ## Tools
+
+### `get_instructions`
+Returns the full analysis workflow and behavior guidelines from `CLAUDE.md`. Called automatically by Claude Code; Claude Desktop will call it at the start of each conversation.
 
 ### `analyze_position`
 Returns the top moves for a position given in FEN notation.

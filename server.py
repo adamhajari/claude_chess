@@ -71,6 +71,21 @@ def _post(path, data, timeout=300):
 # --- MCP tools ---
 
 @mcp.tool()
+def get_instructions() -> str:
+    """Return the full instructions for how to use this MCP server.
+
+    Call this before analyzing any game or position — especially on first use.
+    It contains the required workflow, analysis rules, and behavior guidelines.
+    """
+    claude_md = os.path.join(os.path.dirname(os.path.abspath(__file__)), "CLAUDE.md")
+    try:
+        with open(claude_md) as f:
+            return f.read()
+    except Exception as e:
+        return f"Could not read instructions: {e}"
+
+
+@mcp.tool()
 def start_web_server() -> str:
     """Start the chess web UI (web.py) if it's not already running.
 
@@ -87,6 +102,8 @@ def start_web_server() -> str:
 @mcp.tool()
 def fetch_chesscom_game(url: str) -> str:
     """Fetch the PGN for a chess.com game from its URL.
+
+    Call get_instructions first if you haven't in this conversation.
 
     Supports daily and live game URLs, e.g.:
       https://www.chess.com/game/daily/871993649
@@ -184,6 +201,8 @@ def analyze_game(
     time_per_move: float = 0.1,
 ) -> str:
     """Analyze a chess game and identify blunders, mistakes, and inaccuracies.
+
+    Call get_instructions first if you haven't in this conversation.
 
     Thresholds:
       - Blunder: evaluation drops by more than 200 centipawns
