@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chess Analysis</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #1a1b2e;
+      color: #c9d1d9;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 12px 24px;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    header h1 { font-size: 16px; font-weight: 600; color: #e6edf3; }
+
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      gap: 0;
+    }
+
+    /* ── Board panel ── */
+    .board-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px 24px 24px;
+      flex-shrink: 0;
+    }
+
+    .board-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .eval-bar-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .eval-bar-vertical {
+      width: 14px;
+      height: 544px; /* 8 × 68px */
+      background: #1a1a1a;
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .eval-bar-white-fill {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #f0d9b5;
+      transition: height 0.4s ease;
+      height: 50%;
+    }
+
+    .eval-score-text {
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      color: #6e7681;
+      margin-top: 4px;
+      text-align: center;
+      min-height: 14px;
+    }
+
+    .board-with-coords {
+      display: grid;
+      grid-template-columns: 20px 1fr 20px;
+      grid-template-rows: 20px 1fr 20px;
+      gap: 0;
+    }
+
+    .rank-labels {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      align-items: center;
+      font-size: 11px;
+      color: #6e7681;
+    }
+
+    .file-labels {
+      display: flex;
+      justify-content: space-around;
+      font-size: 11px;
+      color: #6e7681;
+    }
+
+    #board {
+      display: grid;
+      grid-template-columns: repeat(8, 68px);
+      grid-template-rows: repeat(8, 68px);
+      border: 2px solid #30363d;
+      border-radius: 2px;
+    }
+
+    .sq {
+      width: 68px;
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .sq.light  { background: #f0d9b5; }
+    .sq.dark   { background: #b58863; }
+    .sq.hl-from.light, .sq.hl-to.light { background: #cdd26a; }
+    .sq.hl-from.dark,  .sq.hl-to.dark  { background: #aaa23a; }
+    .sq.selected.light { background: #f6f669; }
+    .sq.selected.dark  { background: #dac628; }
+
+    /* Dot for legal empty-square destination */
+    .sq.legal-move::after {
+      content: '';
+      position: absolute;
+      width: 32%;
+      height: 32%;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.18);
+      pointer-events: none;
+    }
+
+    /* Ring for legal capture destination */
+    .sq.legal-capture::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 7px solid rgba(0, 0, 0, 0.18);
+      pointer-events: none;
+    }
+
+    .piece {
+      font-size: 46px;
+      line-height: 1;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .piece.w { color: #fff; text-shadow: 0 0 3px #333, 0 0 5px #333; }
+    .piece.b { color: #1a1a1a; text-shadow: 0 1px 2px #aaa; }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+      align-items: center;
+    }
+
+    .btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn:hover { background: #30363d; }
+    .btn:disabled { opacity: 0.35; cursor: default; }
+    .btn.flip { margin-left: 8px; font-size: 16px; padding: 6px 10px; }
+
+    .move-counter {
+      font-size: 12px;
+      color: #6e7681;
+      min-width: 60px;
+      text-align: center;
+    }
+
+    /* ── Right panel ── */
+    .right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid #30363d;
+      overflow: hidden;
+    }
+
+    .section {
+      padding: 14px 16px;
+      border-bottom: 1px solid #30363d;
+      flex-shrink: 0;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6e7681;
+      margin-bottom: 8px;
+    }
+
+    #pgn-input {
+      width: 100%;
+      height: 90px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #c9d1d9;
+      font-size: 12px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      padding: 8px;
+      resize: none;
+      outline: none;
+    }
+
+    #pgn-input:focus { border-color: #58a6ff; }
+
+    .load-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .btn-primary {
+      background: #238636;
+      border: 1px solid #2ea043;
+      color: #fff;
+      border-radius: 6px;
+      padding: 6px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-primary:hover { background: #2ea043; }
+
+    #load-error {
+      font-size: 12px;
+      color: #f85149;
+      margin-top: 6px;
+      min-height: 16px;
+    }
+
+    /* ── Variation tabs ── */
+    #variation-tabs {
+      display: none;
+      gap: 4px;
+      padding: 8px 16px;
+      border-bottom: 1px solid #30363d;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #8b949e;
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tab-btn:hover { background: #30363d; }
+    .tab-btn.main     { border-color: #1f6feb; color: #1f6feb; }
+    .tab-btn.alt-0    { border-color: #388bfd; color: #388bfd; }
+    .tab-btn.alt-1    { border-color: #a371f7; color: #a371f7; }
+    .tab-btn.alt-2    { border-color: #3fb950; color: #3fb950; }
+    .tab-btn.main.active  { background: #1f6feb; color: #fff; }
+    .tab-btn.alt-0.active { background: #388bfd; color: #fff; }
+    .tab-btn.alt-1.active { background: #a371f7; color: #fff; }
+    .tab-btn.alt-2.active { background: #3fb950; color: #fff; }
+
+    /* ── Move list ── */
+    .moves-section {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 16px;
+    }
+
+    .move-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .move-table td {
+      padding: 3px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .move-table td.move-num {
+      color: #6e7681;
+      cursor: default;
+      font-variant-numeric: tabular-nums;
+      width: 28px;
+    }
+
+    .move-table td.move-san:hover { background: #21262d; }
+    .move-table td.move-san.active { background: #1f6feb; color: #fff; }
+
+    /* Variation move colors */
+    .move-table td.var-0 { color: #388bfd; }
+    .move-table td.var-1 { color: #a371f7; }
+    .move-table td.var-2 { color: #3fb950; }
+    .move-table td.var-0.active { background: #388bfd; color: #fff; }
+    .move-table td.var-1.active { background: #a371f7; color: #fff; }
+    .move-table td.var-2.active { background: #3fb950; color: #fff; }
+    .move-table td.muted { color: #484f58; }
+    .move-table td.muted.move-san:hover { background: #21262d; color: #6e7681; }
+
+    /* Branch indicator dots in main line */
+    .branch-dot {
+      display: inline-block;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      margin-left: 3px;
+      vertical-align: middle;
+      cursor: pointer;
+    }
+    .branch-dot-0 { background: #388bfd; }
+    .branch-dot-1 { background: #a371f7; }
+    .branch-dot-2 { background: #3fb950; }
+    .branch-dot-user { background: #e3b341; }
+
+    /* ── Claude note banner ── */
+    #claude-note {
+      display: none;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 10px 16px;
+      font-size: 13px;
+      color: #8b949e;
+      flex-shrink: 0;
+    }
+
+    #claude-note .note-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #58a6ff;
+      margin-bottom: 4px;
+    }
+
+    #claude-note .note-text { color: #c9d1d9; }
+
+    .moves-footer {
+      display: flex;
+      justify-content: flex-end;
+      padding: 4px 16px 6px;
+      flex-shrink: 0;
+      border-top: 1px solid #30363d;
+    }
+
+    .btn-delete {
+      font-size: 11px;
+      padding: 3px 10px;
+      color: #6e7681;
+      border-color: #30363d;
+    }
+
+    .btn-delete:hover { color: #f85149; border-color: #f85149; }
+
+    /* ── Analysis panel ── */
+    .analysis-section {
+      border-top: 1px solid #30363d;
+      padding: 12px 16px;
+      flex-shrink: 0;
+    }
+
+    .analyze-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    #eval-bar-wrap {
+      flex: 1;
+      height: 8px;
+      background: #1a1a1a;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    #eval-bar {
+      height: 100%;
+      background: #f0d9b5;
+      transition: width 0.3s;
+      width: 50%;
+    }
+
+    #eval-label {
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      color: #8b949e;
+      min-width: 40px;
+      text-align: right;
+    }
+
+    #analysis-lines {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .analysis-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+
+    .analysis-line:hover { background: #21262d; }
+
+    /* Explored moves in the move list */
+    .move-table td.explore { color: #e3b341; }
+    .move-table td.explore.active { background: #e3b341; color: #000; }
+
+    .analysis-score {
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      min-width: 52px;
+      color: #58a6ff;
+    }
+
+    .analysis-move { color: #c9d1d9; }
+
+    #analyzing-msg {
+      font-size: 12px;
+      color: #6e7681;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>♟ Chess Analysis</h1>
+</header>
+
+<div class="main">
+
+  <!-- Board -->
+  <div class="board-panel">
+    <div class="board-row">
+      <div class="eval-bar-container">
+        <div style="height:20px"></div>
+        <div class="eval-bar-vertical">
+          <div class="eval-bar-white-fill" id="eval-bar-white-fill"></div>
+        </div>
+        <div style="height:20px"></div>
+        <div class="eval-score-text" id="eval-score-text"></div>
+      </div>
+      <div class="board-with-coords">
+        <div></div>
+        <div class="file-labels" id="file-labels-top"></div>
+        <div></div>
+        <div class="rank-labels" id="rank-labels-left"></div>
+        <div id="board"></div>
+        <div class="rank-labels" id="rank-labels-right"></div>
+        <div></div>
+        <div class="file-labels" id="file-labels-bottom"></div>
+        <div></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn" id="btn-start" onclick="goTo(0)" title="Start">⏮</button>
+      <button class="btn" id="btn-prev"  onclick="goTo(currentIndex - 1)" title="Previous (←)">◀</button>
+      <span class="move-counter" id="move-counter">—</span>
+      <button class="btn" id="btn-next"  onclick="goTo(currentIndex + 1)" title="Next (→)">▶</button>
+      <button class="btn" id="btn-end"   onclick="goTo(getPositions().length - 1)" title="End">⏭</button>
+      <button class="btn flip" onclick="flipBoard()" title="Flip board">⇅</button>
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="right-panel">
+
+    <div class="section">
+      <div class="section-label">PGN</div>
+      <textarea id="pgn-input" placeholder="Paste PGN here…"></textarea>
+      <div class="load-row">
+        <button class="btn-primary" onclick="loadFromTextarea()">Load game</button>
+      </div>
+      <div id="load-error"></div>
+    </div>
+
+    <div id="claude-note">
+      <div class="note-label" id="note-label">Claude</div>
+      <div class="note-text" id="claude-note-text"></div>
+    </div>
+
+    <div id="variation-tabs"></div>
+
+    <div class="moves-section">
+      <div class="section-label" style="padding: 0 0 6px 0;">Moves</div>
+      <table class="move-table" id="move-table"></table>
+    </div>
+
+    <div class="moves-footer">
+      <button class="btn btn-delete" id="btn-delete-line" onclick="deleteLine()">Delete line</button>
+    </div>
+
+    <div class="analysis-section">
+      <div class="section-label">Stockfish Analysis</div>
+      <div class="analyze-row">
+        <button class="btn" onclick="analyzeCurrent()">Analyze</button>
+        <div id="eval-bar-wrap"><div id="eval-bar"></div></div>
+        <div id="eval-label">—</div>
+      </div>
+      <div id="analysis-lines"></div>
+      <div id="analyzing-msg"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Piece map ──────────────────────────────────────────────────────────────
+const PIECES = {
+  w: { k: '♔', q: '♕', r: '♖', b: '♗', n: '♘', p: '♙' },
+  b: { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' }
+};
+
+// ── State ──────────────────────────────────────────────────────────────────
+let mainPositions    = [];  // FEN per ply, index 0 = start
+let mainMoves        = [];  // verbose move objects
+let variations       = [];  // [{fromPly, note, fullPositions, fullMoves}]
+let currentVariation = 'main'; // 'main' | 0 | 1 | 2
+let currentIndex     = 0;
+let flipped          = false;
+let _serverNote      = '';
+let _precomputedEvals = {};  // ply (string key) → {score_str, cp}
+
+// Manual move selection
+let selectedSquare      = null;   // e.g. 'e4'
+let legalMovesFromSq    = [];     // verbose move objects from selected square
+
+// ── Active line accessors ──────────────────────────────────────────────────
+function getPositions() {
+  return currentVariation === 'main'
+    ? mainPositions
+    : variations[currentVariation].fullPositions;
+}
+
+function getMoves() {
+  return currentVariation === 'main'
+    ? mainMoves
+    : variations[currentVariation].fullMoves;
+}
+
+// ── Load game ──────────────────────────────────────────────────────────────
+function loadGame(pgn, variationsData) {
+  const game = new Chess();
+  if (!game.load_pgn(pgn)) return false;
+
+  const history = game.history({ verbose: true });
+  const builder = new Chess();
+  mainPositions = [builder.fen()];
+  mainMoves = [];
+
+  for (const mv of history) {
+    mainMoves.push(mv);
+    builder.move(mv.san);
+    mainPositions.push(builder.fen());
+  }
+
+  // Build each variation's merged position + move arrays
+  variations = [];
+  for (const vdata of (variationsData || [])) {
+    if (variations.length >= 3) break;
+    const fromPly = vdata.from_ply;
+    if (fromPly < 0 || fromPly >= mainPositions.length) continue;
+
+    const vbuilder = new Chess(mainPositions[fromPly]);
+    const varMoves = [];
+    let ok = true;
+
+    for (const san of (vdata.moves || [])) {
+      const mv = vbuilder.move(san);
+      if (!mv) { ok = false; break; }
+      varMoves.push(mv);
+    }
+    if (!ok || !varMoves.length) continue;
+
+    // Full positions: main[0..fromPly] then variation positions
+    const fullPositions = mainPositions.slice(0, fromPly + 1);
+    const vb = new Chess(mainPositions[fromPly]);
+    for (const mv of varMoves) {
+      vb.move(mv.san);
+      fullPositions.push(vb.fen());
+    }
+
+    // Full moves: main[0..fromPly-1] then variation moves
+    const fullMoves = [...mainMoves.slice(0, fromPly), ...varMoves];
+
+    // Map evals array (one per variation move, in pawns) to position-index dict
+    const evalsByIdx = {};
+    if (Array.isArray(vdata.evals)) {
+      vdata.evals.forEach((pawns, i) => {
+        const posIdx = fromPly + 1 + i;
+        if (posIdx < fullPositions.length) {
+          const cp = Math.round(pawns * 100);
+          evalsByIdx[String(posIdx)] = { score_str: (cp >= 0 ? '+' : '') + (cp / 100).toFixed(2), cp };
+        }
+      });
+    }
+    // Copy main-line evals for the shared prefix (positions 0..fromPly)
+    for (let p = 1; p <= fromPly; p++) {
+      if (_precomputedEvals[String(p)]) evalsByIdx[String(p)] = _precomputedEvals[String(p)];
+    }
+
+    variations.push({ fromPly, note: vdata.note || '', fullPositions, fullMoves, evals: evalsByIdx });
+  }
+
+  return true;
+}
+
+function loadFromTextarea() {
+  const pgn = document.getElementById('pgn-input').value.trim();
+  document.getElementById('load-error').textContent = '';
+  if (!pgn) return;
+
+  if (!loadGame(pgn, [])) {
+    document.getElementById('load-error').textContent = 'Could not parse PGN.';
+    return;
+  }
+
+  currentVariation = 'main';
+  currentIndex = 0;
+  clearExploration();
+  renderVariationTabs();
+  renderBoard();
+  renderMoveList();
+  clearAnalysis();
+}
+
+// ── Variation tabs ─────────────────────────────────────────────────────────
+function renderVariationTabs() {
+  const container = document.getElementById('variation-tabs');
+  document.getElementById('btn-delete-line').style.display =
+    currentVariation === 'main' ? 'none' : '';
+  if (!variations.length) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'flex';
+  container.innerHTML = '';
+
+  const mainBtn = document.createElement('button');
+  mainBtn.className = 'tab-btn main' + (currentVariation === 'main' ? ' active' : '');
+  mainBtn.textContent = 'Main';
+  mainBtn.onclick = () => switchVariation('main');
+  container.appendChild(mainBtn);
+
+  variations.forEach((v, i) => {
+    const btn = document.createElement('button');
+    if (v.userCreated) {
+      const isActive    = currentVariation === i;
+      const parentColor = v.parentColor || MAIN_COLOR;
+      btn.className  = 'tab-btn user-tab' + (isActive ? ' active' : '');
+      btn.textContent = 'Your line';
+      btn.title       = 'Your branch';
+      btn.style.borderColor = parentColor;
+      btn.style.color       = isActive ? '#000' : USER_COLOR;
+      if (isActive) btn.style.background = USER_COLOR;
+    } else {
+      btn.className = `tab-btn alt-${i}` + (currentVariation === i ? ' active' : '');
+      btn.textContent = v.note ? v.note.slice(0, 20) : `Alt ${i + 1}`;
+      btn.title = v.note || `Alternative line ${i + 1}`;
+    }
+    btn.onclick = () => switchVariation(i);
+    container.appendChild(btn);
+  });
+}
+
+function deleteLine() {
+  if (currentVariation === 'main') return;
+  variations.splice(currentVariation, 1);
+  currentVariation = 'main';
+  currentIndex = Math.min(currentIndex, mainPositions.length - 1);
+  clearExploration();
+  renderVariationTabs();
+  renderMoveList();
+  updateNoteDisplay();
+  goTo(currentIndex);
+}
+
+function switchVariation(v) {
+  const prevIndex = currentIndex;
+  clearExploration();
+  currentVariation = v;
+  currentIndex = Math.min(prevIndex, getPositions().length - 1);
+  renderVariationTabs();
+  renderMoveList();
+  updateNoteDisplay();
+  goTo(currentIndex);
+}
+
+// ── Note banner ────────────────────────────────────────────────────────────
+function updateNoteDisplay() {
+  const noteEl   = document.getElementById('claude-note');
+  const noteText = document.getElementById('claude-note-text');
+  const labelEl  = document.getElementById('note-label');
+
+  if (currentVariation !== 'main' && variations[currentVariation].note) {
+    labelEl.textContent = `Alt ${currentVariation + 1}`;
+    noteText.textContent = variations[currentVariation].note;
+    noteEl.style.display = 'block';
+  } else if (_serverNote) {
+    labelEl.textContent = 'Claude';
+    noteText.textContent = _serverNote;
+    noteEl.style.display = 'block';
+  } else {
+    noteEl.style.display = 'none';
+  }
+}
+
+// ── Manual piece movement ──────────────────────────────────────────────────
+function handleSquareClick(sqName) {
+  const chess = new Chess(getPositions()[currentIndex]);
+  const piece = chess.get(sqName);
+
+  if (selectedSquare === null) {
+    // Select a piece if it belongs to the side to move
+    if (!piece || piece.color !== chess.turn()) return;
+    selectedSquare   = sqName;
+    legalMovesFromSq = chess.moves({ square: sqName, verbose: true });
+    renderBoard();
+    return;
+  }
+
+  if (sqName === selectedSquare) {
+    // Deselect
+    selectedSquare   = null;
+    legalMovesFromSq = [];
+    renderBoard();
+    return;
+  }
+
+  const legal = legalMovesFromSq.filter(m => m.to === sqName);
+  if (legal.length) {
+    selectedSquare   = null;
+    legalMovesFromSq = [];
+    // Default promotions to queen
+    const mv = legal.find(m => m.promotion === 'q') || legal[0];
+    exploreMove(mv.san);
+    return;
+  }
+
+  // Clicked a different piece of the same color — switch selection
+  if (piece && piece.color === chess.turn()) {
+    selectedSquare   = sqName;
+    legalMovesFromSq = chess.moves({ square: sqName, verbose: true });
+    renderBoard();
+    return;
+  }
+
+  // Clicked elsewhere — deselect
+  selectedSquare   = null;
+  legalMovesFromSq = [];
+  renderBoard();
+}
+
+// ── Tab color helper ───────────────────────────────────────────────────────
+const CLAUDE_COLORS = ['#388bfd', '#a371f7', '#3fb950'];
+const USER_COLOR    = '#e3b341';
+const MAIN_COLOR    = '#1f6feb';
+
+function getTabColor(tabId) {
+  if (tabId === 'main') return MAIN_COLOR;
+  const v = variations[tabId];
+  if (!v) return MAIN_COLOR;
+  return v.userCreated ? USER_COLOR : (CLAUDE_COLORS[tabId] || MAIN_COLOR);
+}
+
+// ── Exploration ────────────────────────────────────────────────────────────
+function clearExploration() {
+  selectedSquare   = null;
+  legalMovesFromSq = [];
+}
+
+function exploreMove(san) {
+  const fen   = getPositions()[currentIndex];
+  const chess = new Chess(fen);
+  const mv    = chess.move(san);
+  if (!mv) return;
+
+  const onUserVar = currentVariation !== 'main' &&
+                    variations[currentVariation]?.userCreated;
+
+  if (onUserVar) {
+    // Extend (or re-branch within) the existing user tab
+    const v = variations[currentVariation];
+    v.fullPositions = v.fullPositions.slice(0, currentIndex + 1).concat([chess.fen()]);
+    v.fullMoves     = v.fullMoves.slice(0, currentIndex).concat([mv]);
+  } else {
+    // First manual move from main or a Claude variation → open a new user tab.
+    // Seed evals from the current line's already-computed scores for shared positions.
+    const sourceEvals = currentVariation === 'main'
+      ? _precomputedEvals
+      : (variations[currentVariation]?.evals || {});
+    const inheritedEvals = {};
+    for (const [k, v] of Object.entries(sourceEvals)) {
+      if (parseInt(k) <= currentIndex) inheritedEvals[k] = v;
+    }
+
+    const basePositions = getPositions().slice(0, currentIndex + 1);
+    const baseMoves     = getMoves().slice(0, currentIndex);
+    variations.push({
+      fromPly:       currentIndex,
+      note:          'Your line',
+      fullPositions: [...basePositions, chess.fen()],
+      fullMoves:     [...baseMoves, mv],
+      evals:         inheritedEvals,
+      userCreated:   true,
+      parentColor:   getTabColor(currentVariation),
+    });
+    currentVariation = variations.length - 1;
+    renderVariationTabs();
+    updateNoteDisplay();
+  }
+
+  currentIndex++;
+  renderBoard();
+  renderMoveList();
+  clearAnalysis();
+}
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+function goTo(idx) {
+  const positions = getPositions();
+  if (!positions.length) return;
+  idx = Math.max(0, Math.min(positions.length - 1, idx));
+  currentIndex = idx;
+  selectedSquare   = null;
+  legalMovesFromSq = [];
+  renderBoard();
+  highlightActiveMove();
+  const evalSource = currentVariation === 'main'
+    ? _precomputedEvals
+    : (variations[currentVariation]?.evals || {});
+  const preEval = evalSource[String(idx)];
+  if (preEval) {
+    document.getElementById('analysis-lines').innerHTML = '';
+    document.getElementById('analyzing-msg').textContent = '';
+    displayEval(preEval);
+  } else {
+    clearAnalysis();
+  }
+}
+
+// ── Render board ───────────────────────────────────────────────────────────
+function renderBoard() {
+  const board     = document.getElementById('board');
+  board.innerHTML = '';
+
+  const positions = getPositions();
+  const moves     = getMoves();
+  const chess     = new Chess(positions[currentIndex]);
+  const grid      = chess.board();
+  const lastMove  = currentIndex > 0 ? moves[currentIndex - 1] : null;
+  const hlSquares = lastMove ? new Set([lastMove.from, lastMove.to]) : new Set();
+
+  const ranks = flipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
+  const files = flipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7];
+
+  for (const ri of ranks) {
+    for (const fi of files) {
+      const cell     = grid[ri][fi];
+      const fileChar = 'abcdefgh'[fi];
+      const rankNum  = 8 - ri;
+      const sqName   = fileChar + rankNum;
+      const isLight  = (ri + fi) % 2 === 0;
+
+      const sq = document.createElement('div');
+      sq.className = 'sq ' + (isLight ? 'light' : 'dark');
+      if (lastMove && sqName === lastMove.from) sq.classList.add('hl-from');
+      if (lastMove && sqName === lastMove.to)   sq.classList.add('hl-to');
+      if (sqName === selectedSquare) {
+        sq.classList.add('selected');
+      } else if (legalMovesFromSq.some(m => m.to === sqName)) {
+        sq.classList.add(cell ? 'legal-capture' : 'legal-move');
+      }
+      sq.onclick = () => handleSquareClick(sqName);
+
+      if (cell) {
+        const piece = document.createElement('span');
+        piece.className = 'piece ' + cell.color;
+        piece.textContent = PIECES[cell.color][cell.type];
+        sq.appendChild(piece);
+      }
+      board.appendChild(sq);
+    }
+  }
+
+  // Coordinates (all four sides)
+  const rankL = document.getElementById('rank-labels-left');
+  const rankR = document.getElementById('rank-labels-right');
+  const fileT = document.getElementById('file-labels-top');
+  const fileB = document.getElementById('file-labels-bottom');
+  [rankL, rankR, fileT, fileB].forEach(el => el.innerHTML = '');
+
+  const rankNums  = flipped ? [1,2,3,4,5,6,7,8] : [8,7,6,5,4,3,2,1];
+  const fileChars = flipped ? ['h','g','f','e','d','c','b','a'] : ['a','b','c','d','e','f','g','h'];
+
+  rankNums.forEach(n => {
+    [rankL, rankR].forEach(el => {
+      const e = document.createElement('span'); e.textContent = n; el.appendChild(e);
+    });
+  });
+  fileChars.forEach(c => {
+    [fileT, fileB].forEach(el => {
+      const e = document.createElement('span'); e.textContent = c; el.appendChild(e);
+    });
+  });
+
+  const total = positions.length - 1;
+  document.getElementById('move-counter').textContent = total ? `${currentIndex} / ${total}` : '—';
+  document.getElementById('btn-start').disabled = currentIndex === 0;
+  document.getElementById('btn-prev').disabled  = currentIndex === 0;
+  document.getElementById('btn-next').disabled  = currentIndex === positions.length - 1;
+  document.getElementById('btn-end').disabled   = currentIndex === positions.length - 1;
+}
+
+function flipBoard() { flipped = !flipped; renderBoard(); }
+
+// ── Move list ──────────────────────────────────────────────────────────────
+function renderMoveList() {
+  const table      = document.getElementById('move-table');
+  table.innerHTML  = '';
+
+  const moves  = getMoves();
+  const isVar  = currentVariation !== 'main';
+  const fromPly = isVar ? variations[currentVariation].fromPly : -1;
+  const varIdx  = isVar ? currentVariation : -1;
+
+  const isUserVar = isVar && variations[currentVariation]?.userCreated;
+
+  // For main line: map move index → which variation indices branch there
+  const branchAt = {};
+  if (!isVar) {
+    variations.forEach((v, vi) => {
+      if (!branchAt[v.fromPly]) branchAt[v.fromPly] = [];
+      branchAt[v.fromPly].push(vi);
+    });
+  }
+
+  for (let i = 0; i < moves.length; i += 2) {
+    const tr      = document.createElement('tr');
+    const moveNum = Math.floor(i / 2) + 1;
+
+    const wIsVar  = isVar && i >= fromPly;
+    const bIsVar  = isVar && (i + 1) >= fromPly;
+    const wMuted  = isVar && i < fromPly;
+    const bMuted  = isVar && (i + 1) < fromPly;
+
+    const wExtra = (isUserVar && i >= fromPly) ? ' explore'
+                 : (wIsVar ? ` var-${varIdx}` : (wMuted ? ' muted' : ''));
+    const bExtra = (isUserVar && (i + 1) >= fromPly) ? ' explore'
+                 : (bIsVar ? ` var-${varIdx}` : (bMuted ? ' muted' : ''));
+
+    // Move number
+    const tdNum = document.createElement('td');
+    tdNum.className = 'move-num' + (wMuted ? ' muted' : '');
+    tdNum.textContent = moveNum + '.';
+    tr.appendChild(tdNum);
+
+    // White move
+    const tdW = document.createElement('td');
+    tdW.className = 'move-san' + wExtra;
+    tdW.dataset.idx = i + 1;
+    tdW.onclick = () => goTo(i + 1);
+    tdW.appendChild(document.createTextNode(moves[i].san));
+    if (!isVar && branchAt[i]) {
+      branchAt[i].forEach(vi => {
+        const dot = document.createElement('span');
+        dot.className = 'branch-dot ' + (variations[vi].userCreated ? 'branch-dot-user' : `branch-dot-${vi}`);
+        dot.title = variations[vi].userCreated ? 'Your line' : (variations[vi].note || `Alt ${vi + 1}`);
+        dot.onclick = e => { e.stopPropagation(); switchVariation(vi); goTo(i + 1); };
+        tdW.appendChild(dot);
+      });
+    }
+    tr.appendChild(tdW);
+
+    // Black move
+    const tdB = document.createElement('td');
+    tdB.className = 'move-san' + bExtra;
+    if (moves[i + 1]) {
+      tdB.dataset.idx = i + 2;
+      tdB.onclick = () => goTo(i + 2);
+      tdB.appendChild(document.createTextNode(moves[i + 1].san));
+      if (!isVar && branchAt[i + 1]) {
+        branchAt[i + 1].forEach(vi => {
+          const dot = document.createElement('span');
+          dot.className = 'branch-dot ' + (variations[vi].userCreated ? 'branch-dot-user' : `branch-dot-${vi}`);
+          dot.title = variations[vi].userCreated ? 'Your line' : (variations[vi].note || `Alt ${vi + 1}`);
+          dot.onclick = e => { e.stopPropagation(); switchVariation(vi); goTo(i + 2); };
+          tdB.appendChild(dot);
+        });
+      }
+    }
+    tr.appendChild(tdB);
+
+    table.appendChild(tr);
+  }
+
+  highlightActiveMove();
+}
+
+function highlightActiveMove() {
+  document.querySelectorAll('.move-san').forEach(el => {
+    el.classList.toggle('active', parseInt(el.dataset.idx) === currentIndex);
+  });
+  const active = document.querySelector('.move-san.active');
+  if (active) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// ── Stockfish analysis ─────────────────────────────────────────────────────
+function displayEval(evalData) {
+  // evalData.cp is always White's perspective (positive = White winning)
+  if (evalData.cp !== null && evalData.cp !== undefined) {
+    const cp  = Math.max(-1000, Math.min(1000, evalData.cp));
+    const pct = 50 + (cp / 1000) * 50;
+    document.getElementById('eval-bar').style.width = pct + '%';
+    document.getElementById('eval-bar-white-fill').style.height = pct + '%';
+  }
+  document.getElementById('eval-label').textContent = evalData.score_str;
+  document.getElementById('eval-score-text').textContent = evalData.score_str;
+}
+
+function clearAnalysis() {
+  document.getElementById('analysis-lines').innerHTML = '';
+  document.getElementById('analyzing-msg').textContent = '';
+  document.getElementById('eval-label').textContent = '—';
+  document.getElementById('eval-bar').style.width = '50%';
+  document.getElementById('eval-bar-white-fill').style.height = '50%';
+  document.getElementById('eval-score-text').textContent = '';
+}
+
+async function analyzeCurrent() {
+  const positions = getPositions();
+  if (!positions.length) return;
+  const fen = positions[currentIndex];
+
+  document.getElementById('analysis-lines').innerHTML = '';
+  document.getElementById('analyzing-msg').textContent = 'Analyzing…';
+
+  try {
+    const res = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fen, depth: 20, num_moves: 3 })
+    });
+
+    const data = await res.json();
+    document.getElementById('analyzing-msg').textContent = '';
+
+    if (data.error) {
+      document.getElementById('analyzing-msg').textContent = 'Error: ' + data.error;
+      return;
+    }
+
+    const first = data.moves[0];
+    if (first) {
+      // /analyze returns cp from side-to-move perspective; convert to White's
+      const cpWhite = (first.cp !== null && first.cp !== undefined && !fen.includes(' w '))
+        ? -first.cp : first.cp;
+      displayEval({ score_str: first.score_str, cp: cpWhite });
+    }
+
+    const container = document.getElementById('analysis-lines');
+    data.moves.forEach(mv => {
+      const div = document.createElement('div');
+      div.className = 'analysis-line';
+      div.title = 'Click to play this move';
+      div.innerHTML = `<span class="analysis-score">${mv.score_str}</span><span class="analysis-move">${mv.san}</span>`;
+      div.onclick = () => exploreMove(mv.san);
+      container.appendChild(div);
+    });
+
+  } catch (err) {
+    document.getElementById('analyzing-msg').textContent =
+      'Could not reach server. Is web.py running?';
+  }
+}
+
+// ── Keyboard ───────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); goTo(currentIndex - 1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); goTo(currentIndex + 1); }
+  if (e.key === 'ArrowUp')    { e.preventDefault(); goTo(0); }
+  if (e.key === 'ArrowDown')  { e.preventDefault(); goTo(getPositions().length - 1); }
+});
+
+// ── Server polling (Claude → browser) ─────────────────────────────────────
+let _lastVersion = -1;
+
+async function pollServer() {
+  try {
+    const res = await fetch('/current');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.version === _lastVersion) return;
+    _lastVersion = data.version;
+
+    if (data.pgn) {
+      document.getElementById('pgn-input').value = data.pgn;
+      _precomputedEvals = data.evals || {};
+      if (!loadGame(data.pgn, data.variations || [])) return;
+
+      currentVariation = 'main';
+      flipped = !!data.flip;
+      clearExploration();
+      renderVariationTabs();
+      renderMoveList();
+      clearAnalysis();
+
+      const ply = (data.go_to_ply != null && data.go_to_ply >= 0)
+        ? data.go_to_ply
+        : getPositions().length - 1;
+      goTo(ply);
+    }
+
+    _serverNote = data.note || '';
+    updateNoteDisplay();
+  } catch (_) { /* server not running yet */ }
+}
+
+setInterval(pollServer, 2000);
+
+// ── Init ───────────────────────────────────────────────────────────────────
+mainPositions = [new Chess().fen()];
+document.getElementById('btn-delete-line').style.display = 'none';
+renderBoard();
+</script>
+</body>
+</html>

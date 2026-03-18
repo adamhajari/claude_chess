@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "chess-stockfish": {
+      "command": "uv",
+      "args": ["run", "server.py"]
+    }
+  }
+}
