@@ -109,4 +109,4 @@ Once set up, just paste a PGN, FEN, or chess.com URL into Claude Code and ask fo
 - *"Find all the blunders in this game: [PGN]"*
 - *"Help me analyze this game: https://www.chess.com/game/daily/..."*
 
-To get a PGN from Chess.com, open any game → More → Share & Export → Copy PGN.
+To get a PGN from Chess.com, open any game → More → Share & Export → Copy PGN. 
